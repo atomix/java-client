@@ -19,11 +19,11 @@ import io.atomix.api.primitive.Name;
 import io.atomix.api.set.*;
 import io.atomix.client.collection.CollectionEvent;
 import io.atomix.client.collection.CollectionEventListener;
-import io.atomix.client.impl.AbstractManagedPrimitive;
+import io.atomix.client.impl.AbstractAsyncPrimitive;
 import io.atomix.client.impl.TranscodingStreamObserver;
 import io.atomix.client.iterator.AsyncIterator;
 import io.atomix.client.iterator.impl.StreamObserverIterator;
-import io.atomix.client.partition.Partition;
+import io.atomix.client.session.Session;
 import io.atomix.client.set.AsyncDistributedSet;
 import io.atomix.client.set.DistributedSet;
 import io.atomix.client.utils.concurrent.Futures;
@@ -42,13 +42,13 @@ import java.util.concurrent.Executor;
  * Default distributed set primitive.
  */
 public class DefaultAsyncDistributedSet
-    extends AbstractManagedPrimitive<SetServiceGrpc.SetServiceStub, AsyncDistributedSet<String>>
+    extends AbstractAsyncPrimitive<SetServiceGrpc.SetServiceStub, AsyncDistributedSet<String>>
     implements AsyncDistributedSet<String> {
     private volatile CompletableFuture<Long> listenFuture;
     private final Map<CollectionEventListener<String>, Executor> eventListeners = new ConcurrentHashMap<>();
 
-    public DefaultAsyncDistributedSet(Name name, Partition partition, ThreadContext context, Duration timeout) {
-        super(name, SetServiceGrpc.newStub(partition.getChannelFactory().getChannel()), context, timeout);
+    public DefaultAsyncDistributedSet(Name name, Session session, ThreadContext context) {
+        super(name, SetServiceGrpc.newStub(session.getPartition().getChannelFactory().getChannel()), session, context);
     }
 
     @Override
@@ -84,24 +84,27 @@ public class DefaultAsyncDistributedSet
     @Override
     @SuppressWarnings("unchecked")
     public CompletableFuture<Boolean> addAll(Collection<? extends String> c) {
-        return command(
+
+        /*return command(
             (header, observer) -> getService().add(AddRequest.newBuilder()
                 .setHeader(header)
                 .addAllValues((Collection) c)
                 .build(), observer),
             AddResponse::getHeader)
-            .thenApply(response -> response.getAdded());
+            .thenApply(response -> response.getAdded());*/
+        return null;
     }
 
     @Override
     public CompletableFuture<Boolean> containsAll(Collection<? extends String> c) {
-        return query(
+        /*return query(
             (header, observer) -> getService().contains(ContainsRequest.newBuilder()
                 .setHeader(header)
                 .addAllValues((Collection) c)
                 .build(), observer),
             ContainsResponse::getHeader)
-            .thenApply(response -> response.getContains());
+            .thenApply(response -> response.getContains());*/
+        return null;
     }
 
     @Override
@@ -111,13 +114,14 @@ public class DefaultAsyncDistributedSet
 
     @Override
     public CompletableFuture<Boolean> removeAll(Collection<? extends String> c) {
-        return command(
+       /* return command(
             (header, observer) -> getService().remove(RemoveRequest.newBuilder()
                 .setHeader(header)
                 .addAllValues((Collection) c)
                 .build(), observer),
             RemoveResponse::getHeader)
-            .thenApply(response -> response.getRemoved());
+            .thenApply(response -> response.getRemoved());*/
+        return null;
     }
 
     @Override
@@ -203,22 +207,12 @@ public class DefaultAsyncDistributedSet
         return iterator;
     }
 
-    @Override
-    protected CompletableFuture<Long> openSession(Duration timeout) {
-        return this.<CreateResponse>session((header, observer) -> getService().create(CreateRequest.newBuilder()
-            .setTimeout(com.google.protobuf.Duration.newBuilder()
-                .setSeconds(timeout.getSeconds())
-                .setNanos(timeout.getNano())
-                .build())
-            .build(), observer))
-            .thenApply(response -> response.getHeader().getSessionId());
-    }
 
     @Override
-    protected CompletableFuture<Boolean> keepAlive() {
-        return this.<KeepAliveResponse>session((header, observer) -> getService().keepAlive(KeepAliveRequest.newBuilder()
+    protected CompletableFuture<Void> create() {
+        return this.<CreateResponse>session((header, observer) -> getService().create(CreateRequest.newBuilder()
             .build(), observer))
-            .thenApply(response -> true);
+            .thenApply(v -> null);
     }
 
     @Override

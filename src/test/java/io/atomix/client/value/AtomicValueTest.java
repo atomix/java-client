@@ -31,7 +31,7 @@ import static org.junit.Assert.assertTrue;
  * Raft atomic value test.
  */
 public class AtomicValueTest extends AbstractPrimitiveTest {
-    @Test
+    /*@Test
     public void testValue() throws Exception {
         AtomicValue<String> value = client().<String>atomicValueBuilder("test-value").build();
         assertNull(value.get().value());
@@ -92,12 +92,12 @@ public class AtomicValueTest extends AbstractPrimitiveTest {
          *
          * @return the next event
          */
-        AtomicValueEvent<T> nextEvent() {
+        /*AtomicValueEvent<T> nextEvent() {
             try {
                 return events.take();
             } catch (InterruptedException e) {
                 return null;
             }
         }
-    }
+    }*/
 }

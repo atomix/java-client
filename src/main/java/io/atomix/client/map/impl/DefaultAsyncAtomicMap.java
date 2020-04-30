@@ -25,7 +25,7 @@ import io.atomix.client.collection.AsyncDistributedCollection;
 import io.atomix.client.collection.CollectionEvent;
 import io.atomix.client.collection.CollectionEventListener;
 import io.atomix.client.collection.impl.UnsupportedAsyncDistributedCollection;
-import io.atomix.client.impl.AbstractManagedPrimitive;
+import io.atomix.client.impl.AbstractAsyncPrimitive;
 import io.atomix.client.impl.TranscodingStreamObserver;
 import io.atomix.client.iterator.AsyncIterator;
 import io.atomix.client.iterator.impl.StreamObserverIterator;
@@ -33,7 +33,7 @@ import io.atomix.client.map.AsyncAtomicMap;
 import io.atomix.client.map.AtomicMap;
 import io.atomix.client.map.AtomicMapEvent;
 import io.atomix.client.map.AtomicMapEventListener;
-import io.atomix.client.partition.Partition;
+import io.atomix.client.session.Session;
 import io.atomix.client.set.AsyncDistributedSet;
 import io.atomix.client.set.impl.UnsupportedAsyncDistributedSet;
 import io.atomix.client.utils.concurrent.Futures;
@@ -52,12 +52,14 @@ import java.util.function.Predicate;
 /**
  * Default asynchronous atomic map primitive.
  */
-public class DefaultAsyncAtomicMap extends AbstractManagedPrimitive<MapServiceGrpc.MapServiceStub, AsyncAtomicMap<String, byte[]>> implements AsyncAtomicMap<String, byte[]> {
+public class DefaultAsyncAtomicMap extends
+    AbstractAsyncPrimitive<MapServiceGrpc.MapServiceStub, AsyncAtomicMap<String, byte[]>>
+    implements AsyncAtomicMap<String, byte[]> {
     private volatile CompletableFuture<Long> listenFuture;
     private final Map<AtomicMapEventListener<String, byte[]>, Executor> eventListeners = new ConcurrentHashMap<>();
 
-    public DefaultAsyncAtomicMap(Name name, Partition partition, ThreadContext context, Duration timeout) {
-        super(name, MapServiceGrpc.newStub(partition.getChannelFactory().getChannel()), context, timeout);
+    public DefaultAsyncAtomicMap(Name name, Session session, ThreadContext context) {
+        super(name, MapServiceGrpc.newStub(session.getPartition().getChannelFactory().getChannel()), session, context);
     }
 
     @Override
@@ -201,7 +203,10 @@ public class DefaultAsyncAtomicMap extends AbstractManagedPrimitive<MapServiceGr
                 .setHeader(header)
                 .setKey(key)
                 .setValue(ByteString.copyFrom(value))
-                .setTtl(ttl.toMillis())
+                .setTtl(com.google.protobuf.Duration.newBuilder()
+                    .setSeconds(ttl.getSeconds())
+                    .setNanos(ttl.getNano())
+                    .build())
                 .build(), observer),
             PutResponse::getHeader)
             .thenCompose(response -> {
@@ -222,8 +227,11 @@ public class DefaultAsyncAtomicMap extends AbstractManagedPrimitive<MapServiceGr
                 .setHeader(header)
                 .setKey(key)
                 .setValue(ByteString.copyFrom(value))
+                .setTtl(com.google.protobuf.Duration.newBuilder()
+                    .setSeconds(ttl.getSeconds())
+                    .setNanos(ttl.getNano())
+                    .build())
                 .setVersion(-1)
-                .setTtl(ttl.toMillis())
                 .build(), observer),
             PutResponse::getHeader)
             .thenCompose(response -> {
@@ -388,23 +396,23 @@ public class DefaultAsyncAtomicMap extends AbstractManagedPrimitive<MapServiceGr
                                 event = new AtomicMapEvent<>(
                                     AtomicMapEvent.Type.INSERTED,
                                     response.getKey(),
-                                    new Versioned<>(response.getNewValue().toByteArray(), response.getNewVersion()),
+                                    new Versioned<>(response.getValue().toByteArray(), response.getVersion()),
                                     null);
                                 break;
                             case UPDATED:
-                                event = new AtomicMapEvent<>(
+                                /*event = new AtomicMapEvent<>(
                                     AtomicMapEvent.Type.UPDATED,
                                     response.getKey(),
-                                    new Versioned<>(response.getNewValue().toByteArray(), response.getNewVersion()),
+                                    new Versioned<>(response.getValue().toByteArray(), response.getVersion()),
                                     new Versioned<>(response.getOldValue().toByteArray(), response.getOldVersion()));
-                                break;
+                                break;*/
                             case REMOVED:
-                                event = new AtomicMapEvent<>(
+                                /*event = new AtomicMapEvent<>(
                                     AtomicMapEvent.Type.REMOVED,
                                     response.getKey(),
                                     null,
                                     new Versioned<>(response.getOldValue().toByteArray(), response.getOldVersion()));
-                                break;
+                                break;*/
                         }
                         onEvent(event);
                     }
@@ -443,23 +451,11 @@ public class DefaultAsyncAtomicMap extends AbstractManagedPrimitive<MapServiceGr
     }
 
     @Override
-    protected CompletableFuture<Long> openSession(Duration timeout) {
+    protected CompletableFuture<Void> create() {
         return this.<CreateResponse>session((header, observer) -> getService().create(CreateRequest.newBuilder()
             .setHeader(header)
-            .setTimeout(com.google.protobuf.Duration.newBuilder()
-                .setSeconds(timeout.getSeconds())
-                .setNanos(timeout.getNano())
-                .build())
             .build(), observer))
-            .thenApply(response -> response.getHeader().getSessionId());
-    }
-
-    @Override
-    protected CompletableFuture<Boolean> keepAlive() {
-        return this.<KeepAliveResponse>session((header, observer) -> getService().keepAlive(KeepAliveRequest.newBuilder()
-            .setHeader(header)
-            .build(), observer))
-            .thenApply(response -> true);
+            .thenApply(v -> null);
     }
 
     @Override

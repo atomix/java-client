@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import io.atomix.client.AbstractPrimitiveTest;
-import org.apache.commons.lang3.tuple.Pair;
+
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -41,7 +41,7 @@ import static org.junit.Assert.assertTrue;
  */
 public class DistributedMapTest extends AbstractPrimitiveTest {
 
-    @Test
+    /*@Test
     public void testBasicMapOperations() throws Throwable {
         final String fooValue = "Hello foo!";
         final String barValue = "Hello bar!";
@@ -234,12 +234,12 @@ public class DistributedMapTest extends AbstractPrimitiveTest {
             map.put(String.valueOf(100 * i), String.valueOf(100 * i));
         }
         assertEquals(String.valueOf(100), map.get(String.valueOf(100)));
-    }
+    }*/
 
     /**
      * Tests a map with complex types.
      */
-    @Test
+    /*@Test
     public void testComplexTypes() throws Throwable {
         DistributedMap<Key, Pair<String, Integer>> map = client()
             .<Key, Pair<String, Integer>>mapBuilder("testComplexTypes").build();
@@ -276,5 +276,5 @@ public class DistributedMapTest extends AbstractPrimitiveTest {
         public MapEvent<String, String> event() throws InterruptedException {
             return queue.poll(10, TimeUnit.SECONDS);
         }
-    }
+    }*/
 }

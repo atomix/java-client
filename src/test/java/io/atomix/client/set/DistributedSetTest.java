@@ -33,7 +33,7 @@ import static org.junit.Assert.assertTrue;
  * Distributed set test.
  */
 public class DistributedSetTest extends AbstractPrimitiveTest {
-    @Test
+    /*@Test
     public void testSetOperations() throws Exception {
         DistributedSet<String> set = client().<String>setBuilder("test-set").build();
 
@@ -118,5 +118,5 @@ public class DistributedSetTest extends AbstractPrimitiveTest {
         public CollectionEvent<String> event() throws InterruptedException {
             return queue.poll(10, TimeUnit.SECONDS);
         }
-    }
+    }*/
 }

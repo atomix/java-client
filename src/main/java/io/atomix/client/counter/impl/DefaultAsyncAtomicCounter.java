@@ -15,31 +15,19 @@
  */
 package io.atomix.client.counter.impl;
 
-import java.time.Duration;
-import java.util.concurrent.CompletableFuture;
-
-import io.atomix.api.counter.CheckAndSetRequest;
-import io.atomix.api.counter.CheckAndSetResponse;
-import io.atomix.api.counter.CloseRequest;
-import io.atomix.api.counter.CloseResponse;
-import io.atomix.api.counter.CounterServiceGrpc;
-import io.atomix.api.counter.CreateRequest;
-import io.atomix.api.counter.CreateResponse;
-import io.atomix.api.counter.DecrementRequest;
-import io.atomix.api.counter.DecrementResponse;
-import io.atomix.api.counter.GetRequest;
-import io.atomix.api.counter.GetResponse;
-import io.atomix.api.counter.IncrementRequest;
-import io.atomix.api.counter.IncrementResponse;
-import io.atomix.api.counter.SetRequest;
-import io.atomix.api.counter.SetResponse;
+import io.atomix.api.counter.*;
 import io.atomix.api.primitive.Name;
-import io.atomix.api.headers.ResponseHeader;
+import io.atomix.client.AsyncAtomixClient;
 import io.atomix.client.counter.AsyncAtomicCounter;
 import io.atomix.client.counter.AtomicCounter;
 import io.atomix.client.impl.AbstractAsyncPrimitive;
-import io.atomix.client.partition.Partition;
+import io.atomix.client.session.Session;
 import io.atomix.client.utils.concurrent.ThreadContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Atomix counter implementation.
@@ -47,13 +35,15 @@ import io.atomix.client.utils.concurrent.ThreadContext;
 public class DefaultAsyncAtomicCounter
     extends AbstractAsyncPrimitive<CounterServiceGrpc.CounterServiceStub, AsyncAtomicCounter>
     implements AsyncAtomicCounter {
-    public DefaultAsyncAtomicCounter(Name name, Partition partition, ThreadContext context) {
-        super(name, CounterServiceGrpc.newStub(partition.getChannelFactory().getChannel()), context);
+    public DefaultAsyncAtomicCounter(Name name, Session session, ThreadContext context) {
+        super(name, CounterServiceGrpc.newStub(session.getPartition().getChannelFactory().getChannel()), session, context);
     }
+    private static final Logger LOGGER = LoggerFactory.getLogger(DefaultAsyncAtomicCounter.class);
 
     @Override
     public CompletableFuture<Long> get() {
-        return execute((header, observer) -> getService().get(GetRequest.newBuilder()
+        LOGGER.info("Get function is called in default async atomic counter");
+        return query((header, observer) -> getService().get(GetRequest.newBuilder()
             .setHeader(header)
             .build(), observer), GetResponse::getHeader)
             .thenApply(response -> response.getValue());
@@ -61,7 +51,8 @@ public class DefaultAsyncAtomicCounter
 
     @Override
     public CompletableFuture<Void> set(long value) {
-        return execute((header, observer) -> getService().set(SetRequest.newBuilder()
+        LOGGER.info("Set function is called");
+        return command((header, observer) -> getService().set(SetRequest.newBuilder()
             .setHeader(header)
             .setValue(value)
             .build(), observer), SetResponse::getHeader)
@@ -70,7 +61,7 @@ public class DefaultAsyncAtomicCounter
 
     @Override
     public CompletableFuture<Boolean> compareAndSet(long expectedValue, long updateValue) {
-        return execute((header, observer) -> getService().checkAndSet(CheckAndSetRequest.newBuilder()
+        return command((header, observer) -> getService().checkAndSet(CheckAndSetRequest.newBuilder()
             .setHeader(header)
             .setExpect(expectedValue)
             .setUpdate(updateValue)
@@ -80,7 +71,7 @@ public class DefaultAsyncAtomicCounter
 
     @Override
     public CompletableFuture<Long> addAndGet(long delta) {
-        return execute((header, observer) -> getService().increment(IncrementRequest.newBuilder()
+        return command((header, observer) -> getService().increment(IncrementRequest.newBuilder()
             .setHeader(header)
             .setDelta(delta)
             .build(), observer), IncrementResponse::getHeader)
@@ -89,7 +80,7 @@ public class DefaultAsyncAtomicCounter
 
     @Override
     public CompletableFuture<Long> getAndAdd(long delta) {
-        return execute((header, observer) -> getService().increment(IncrementRequest.newBuilder()
+        return command((header, observer) -> getService().increment(IncrementRequest.newBuilder()
             .setHeader(header)
             .setDelta(delta)
             .build(), observer), IncrementResponse::getHeader)
@@ -98,7 +89,7 @@ public class DefaultAsyncAtomicCounter
 
     @Override
     public CompletableFuture<Long> incrementAndGet() {
-        return execute((header, observer) -> getService().increment(IncrementRequest.newBuilder()
+        return command((header, observer) -> getService().increment(IncrementRequest.newBuilder()
             .setHeader(header)
             .setDelta(1)
             .build(), observer), IncrementResponse::getHeader)
@@ -107,7 +98,7 @@ public class DefaultAsyncAtomicCounter
 
     @Override
     public CompletableFuture<Long> getAndIncrement() {
-        return execute((header, observer) -> getService().increment(IncrementRequest.newBuilder()
+        return command((header, observer) -> getService().increment(IncrementRequest.newBuilder()
             .setHeader(header)
             .setDelta(1)
             .build(), observer), IncrementResponse::getHeader)
@@ -116,7 +107,7 @@ public class DefaultAsyncAtomicCounter
 
     @Override
     public CompletableFuture<Long> decrementAndGet() {
-        return execute((header, observer) -> getService().decrement(DecrementRequest.newBuilder()
+        return command((header, observer) -> getService().decrement(DecrementRequest.newBuilder()
             .setHeader(header)
             .setDelta(1)
             .build(), observer), DecrementResponse::getHeader)
@@ -125,7 +116,7 @@ public class DefaultAsyncAtomicCounter
 
     @Override
     public CompletableFuture<Long> getAndDecrement() {
-        return execute((header, observer) -> getService().decrement(DecrementRequest.newBuilder()
+        return command((header, observer) -> getService().decrement(DecrementRequest.newBuilder()
             .setHeader(header)
             .setDelta(1)
             .build(), observer), DecrementResponse::getHeader)
@@ -133,27 +124,22 @@ public class DefaultAsyncAtomicCounter
     }
 
     @Override
-    public CompletableFuture<AsyncAtomicCounter> connect() {
-        return execute((header, observer) -> getService().create(CreateRequest.newBuilder()
-            .setHeader(header)
-            .build(), observer), CreateResponse::getHeader)
-            .thenApply(v -> this);
+    protected CompletableFuture<Void> create() {
+        LOGGER.info("Create function is called");
+        CompletableFuture returnValue = command((header, observer) -> getService().create(CreateRequest.newBuilder()
+                .setHeader(header)
+                .build(), observer), CreateResponse::getHeader)
+                .thenApply(v -> null);
+        LOGGER.info("Command Return value" + returnValue.toString());
+        return returnValue;
     }
 
     @Override
-    public CompletableFuture<Void> close() {
-        return this.<CloseResponse>execute((header, observer) -> getService().close(CloseRequest.newBuilder()
+    protected CompletableFuture<Void> close(boolean delete) {
+        return this.<CloseResponse>session((header, observer) -> getService().close(CloseRequest.newBuilder()
             .setHeader(header)
-            .build(), observer), response -> ResponseHeader.getDefaultInstance())
-            .thenApply(v -> null);
-    }
-
-    @Override
-    public CompletableFuture<Void> delete() {
-        return this.<CloseResponse>execute((header, observer) -> getService().close(CloseRequest.newBuilder()
-            .setHeader(header)
-            .setDelete(true)
-            .build(), observer), response -> ResponseHeader.getDefaultInstance())
+            .setDelete(delete)
+            .build(), observer))
             .thenApply(v -> null);
     }
 

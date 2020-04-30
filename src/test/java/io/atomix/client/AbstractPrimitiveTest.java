@@ -38,10 +38,6 @@ import io.atomix.api.controller.PartitionGroup;
 import io.atomix.api.controller.PartitionGroupId;
 import io.atomix.api.controller.PartitionGroupSpec;
 import io.atomix.api.controller.PartitionId;
-import io.atomix.client.test.TestController;
-import io.atomix.client.test.TestProtocol;
-import io.atomix.client.utils.concurrent.Futures;
-import io.atomix.server.AtomixServer;
 import org.junit.After;
 import org.junit.Before;
 
@@ -49,16 +45,16 @@ import org.junit.Before;
  * Base Atomix test.
  */
 public abstract class AbstractPrimitiveTest {
-  private TestController controller;
+  /*private TestController controller;
   private List<AtomixServer> servers;
-  private List<AtomixClient> clients;
+  private List<AtomixClient> clients;*/
 
   /**
    * Returns a new Atomix instance.
    *
    * @return a new Atomix instance.
    */
-  protected AtomixClient client() throws Exception {
+  /*protected AtomixClient client() throws Exception {
     AtomixClient client = AtomixClient.builder()
         .withServer("localhost", 6000)
         .build();
@@ -164,5 +160,5 @@ public abstract class AbstractPrimitiveTest {
         }
       });
     }
-  }
+  }*/
 }

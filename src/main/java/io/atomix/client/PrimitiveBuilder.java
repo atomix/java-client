@@ -15,10 +15,11 @@
  */
 package io.atomix.client;
 
-import io.atomix.api.controller.PartitionGroupId;
 import io.atomix.api.primitive.Name;
 import io.atomix.client.partition.Partitioner;
 import io.atomix.client.utils.serializer.Serializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -33,17 +34,13 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public abstract class PrimitiveBuilder<B extends PrimitiveBuilder<B, P>, P extends SyncPrimitive> {
     protected final Name name;
-    protected PartitionGroupId group;
     protected Partitioner<String> partitioner = Partitioner.MURMUR3;
     protected boolean readOnly;
     protected Serializer serializer;
     protected final PrimitiveManagementService managementService;
-
+    private static final Logger LOGGER = LoggerFactory.getLogger(PrimitiveBuilder.class);
     protected PrimitiveBuilder(Name name, PrimitiveManagementService managementService) {
         this.name = checkNotNull(name, "name cannot be null");
-        this.group = PartitionGroupId.newBuilder()
-            .setNamespace(name.getNamespace())
-            .build();
         this.managementService = checkNotNull(managementService, "managementService cannot be null");
     }
 
@@ -53,21 +50,8 @@ public abstract class PrimitiveBuilder<B extends PrimitiveBuilder<B, P>, P exten
      * @return the namespaced primitive name
      */
     protected Name getName() {
+        LOGGER.info("Get Name in primitive builder is called");
         return name;
-    }
-
-    /**
-     * Sets the primitive partition group.
-     *
-     * @param name the primitive partition group
-     * @return the primitive builder
-     */
-    @SuppressWarnings("unchecked")
-    public B withGroup(String name) {
-        this.group = PartitionGroupId.newBuilder(this.group)
-            .setName(name)
-            .build();
-        return (B) this;
     }
 
     /**
@@ -134,9 +118,11 @@ public abstract class PrimitiveBuilder<B extends PrimitiveBuilder<B, P>, P exten
      * @return a new instance of the primitive
      */
     public P build() {
+        LOGGER.info("Primitive builder build is called");
         try {
             return buildAsync().join();
         } catch (Exception e) {
+            LOGGER.info("Exception in primitive builder");
             if (e instanceof CompletionException && e.getCause() instanceof RuntimeException) {
                 throw (RuntimeException) e.getCause();
             } else {

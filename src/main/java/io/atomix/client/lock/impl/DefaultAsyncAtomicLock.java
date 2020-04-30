@@ -15,40 +15,28 @@
  */
 package io.atomix.client.lock.impl;
 
+import io.atomix.api.lock.*;
+import io.atomix.api.primitive.Name;
+import io.atomix.client.impl.AbstractAsyncPrimitive;
+import io.atomix.client.lock.AsyncAtomicLock;
+import io.atomix.client.lock.AtomicLock;
+import io.atomix.client.session.Session;
+import io.atomix.client.utils.concurrent.Scheduled;
+import io.atomix.client.utils.concurrent.ThreadContext;
+
 import java.time.Duration;
 import java.util.OptionalLong;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
-import io.atomix.api.primitive.Name;
-import io.atomix.api.lock.CloseRequest;
-import io.atomix.api.lock.CloseResponse;
-import io.atomix.api.lock.CreateRequest;
-import io.atomix.api.lock.CreateResponse;
-import io.atomix.api.lock.IsLockedRequest;
-import io.atomix.api.lock.IsLockedResponse;
-import io.atomix.api.lock.KeepAliveRequest;
-import io.atomix.api.lock.KeepAliveResponse;
-import io.atomix.api.lock.LockRequest;
-import io.atomix.api.lock.LockResponse;
-import io.atomix.api.lock.LockServiceGrpc;
-import io.atomix.api.lock.UnlockRequest;
-import io.atomix.api.lock.UnlockResponse;
-import io.atomix.client.impl.AbstractManagedPrimitive;
-import io.atomix.client.lock.AsyncAtomicLock;
-import io.atomix.client.lock.AtomicLock;
-import io.atomix.client.partition.Partition;
-import io.atomix.client.utils.concurrent.Scheduled;
-import io.atomix.client.utils.concurrent.ThreadContext;
-
 /**
  * Raft lock.
  */
-public class DefaultAsyncAtomicLock extends AbstractManagedPrimitive<LockServiceGrpc.LockServiceStub, AsyncAtomicLock> implements AsyncAtomicLock {
+public class DefaultAsyncAtomicLock extends AbstractAsyncPrimitive<LockServiceGrpc.LockServiceStub, AsyncAtomicLock> implements AsyncAtomicLock {
     private final AtomicLong lockId = new AtomicLong();
 
-    public DefaultAsyncAtomicLock(Name name, Partition partition, ThreadContext context, Duration timeout) {
-        super(name, LockServiceGrpc.newStub(partition.getChannelFactory().getChannel()), context, timeout);
+    public DefaultAsyncAtomicLock(Name name, Session session, ThreadContext context) {
+        super(name, LockServiceGrpc.newStub(session.getPartition().getChannelFactory().getChannel()), session, context);
     }
 
     @Override
@@ -155,22 +143,12 @@ public class DefaultAsyncAtomicLock extends AbstractManagedPrimitive<LockService
             .thenApply(response -> response.getIsLocked());
     }
 
-    @Override
-    protected CompletableFuture<Long> openSession(Duration timeout) {
-        return this.<CreateResponse>session((header, observer) -> getService().create(CreateRequest.newBuilder()
-            .setTimeout(com.google.protobuf.Duration.newBuilder()
-                .setSeconds(timeout.getSeconds())
-                .setNanos(timeout.getNano())
-                .build())
-            .build(), observer))
-            .thenApply(response -> response.getHeader().getSessionId());
-    }
 
     @Override
-    protected CompletableFuture<Boolean> keepAlive() {
-        return this.<KeepAliveResponse>session((header, observer) -> getService().keepAlive(KeepAliveRequest.newBuilder()
+    protected CompletableFuture<Void> create() {
+        return this.<CreateResponse>session((header, observer) -> getService().create(CreateRequest.newBuilder()
             .build(), observer))
-            .thenApply(response -> true);
+            .thenApply(v -> null);
     }
 
     @Override

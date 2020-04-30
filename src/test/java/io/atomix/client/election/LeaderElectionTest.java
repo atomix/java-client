@@ -31,7 +31,7 @@ import static org.junit.Assert.assertTrue;
  * Unit tests for {@link AsyncLeaderElection}.
  */
 public class LeaderElectionTest extends AbstractPrimitiveTest {
-    String node1 = "node1";
+    /*String node1 = "node1";
     String node2 = "node2";
     String node3 = "node3";
 
@@ -265,5 +265,5 @@ public class LeaderElectionTest extends AbstractPrimitiveTest {
                 }
             }
         }
-    }
+    }*/
 }

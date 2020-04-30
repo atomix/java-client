@@ -26,7 +26,7 @@ import static org.junit.Assert.assertTrue;
  * Unit tests for {@link AtomicCounter}.
  */
 public class AtomicCounterTest extends AbstractPrimitiveTest {
-    @Test
+    /*@Test
     public void testBasicOperations() throws Throwable {
         AtomicCounter along = client().atomicCounterBuilder("test-counter-basic-operations").build();
         assertEquals(0, along.get());
@@ -43,5 +43,5 @@ public class AtomicCounterTest extends AbstractPrimitiveTest {
         assertEquals(100, along.decrementAndGet());
         assertEquals(100, along.getAndDecrement());
         assertEquals(99, along.get());
-    }
+    }*/
 }

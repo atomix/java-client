@@ -15,72 +15,24 @@
  */
 package io.atomix.client;
 
-import io.atomix.api.primitive.Name;
-import io.atomix.client.channel.ChannelProvider;
-import io.atomix.client.impl.DefaultPrimitiveManagementService;
-import io.atomix.client.impl.PrimitiveCacheImpl;
-import io.atomix.client.partition.impl.PartitionServiceImpl;
-import io.atomix.client.utils.concurrent.BlockingAwareThreadPoolContextFactory;
-import io.atomix.client.utils.concurrent.ThreadContextFactory;
+import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
+import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
-import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Primary interface for managing Atomix clusters and operating on distributed primitives.
- * <p>
- * The {@code Atomix} class is the primary interface to all Atomix features. To construct an {@code Atomix} instance,
- * either configure the instance with a configuration file or construct a new instance from an {@link AtomixClientBuilder}.
- * Builders can be created via various {@link #builder()} methods:
- * <pre>
- *   {@code
- *   Atomix atomix = Atomix.builder()
- *     .withMemberId("member-1")
- *     .withHost("192.168.10.2")
- *     .build();
- *   }
- * </pre>
- * Once an {@code Atomix} instance has been constructed, start the instance by calling {@link #start()}:
- * <pre>
- *   {@code
- *   atomix.start().join();
- *   }
- * </pre>
- * The returned {@link CompletableFuture} will be completed once the node has been bootstrapped and all services are
- * available.
- * <p>
- * The instance can be used to access services for managing the cluster or communicating with other nodes. Additionally,
- * it provides various methods for creating and operating on distributed primitives. Generally, the primitive methods
- * are separated into two types. Primitive getters return multiton instances of a primitive. Primitives created via
- * getters must be pre-configured in the Atomix instance configuration. Alternatively, primitive builders can be used to
- * create and configure primitives in code:
- * <pre>
- *   {@code
- *   DistributedMap<String, String> map = atomix.mapBuilder("my-map")
- *     .withProtocol(MultiRaftProtocol.builder("raft")
- *       .withReadConsistency(ReadConsistency.SEQUENTIAL)
- *       .build())
- *     .build();
- *   }
- * </pre>
- * Custom primitives can be constructed by providing a custom {@link PrimitiveType} and using the {@link
- * #primitiveBuilder(String, PrimitiveType)} method:
- * <pre>
- *   {@code
- *   MyPrimitive myPrimitive = atomix.primitiveBuilder("my-primitive, MyPrimitiveType.instance())
- *     .withProtocol(MultiRaftProtocol.builder("raft")
- *       .withReadConsistency(ReadConsistency.SEQUENTIAL)
- *       .build())
- *     .build();
- *   }
- * </pre>
  */
-public class AtomixClient implements AtomixClientService {
+public class AtomixClient {
 
     /**
      * Returns a new Atomix client builder.
@@ -90,69 +42,65 @@ public class AtomixClient implements AtomixClientService {
     public static AtomixClientBuilder builder() {
         return new AtomixClientBuilder();
     }
+    private static final long TIMEOUT_MILLIS = Duration.ofSeconds(30).toMillis();
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(AtomixClient.class);
+    private final AsyncAtomixClient asyncClient;
 
-    private final String namespace;
-    private final ChannelProvider channelProvider;
-    private final PrimitiveCache primitiveCache = new PrimitiveCacheImpl();
-    private ThreadContextFactory threadContextFactory;
-    private PrimitiveManagementService managementService;
-    private final AtomicBoolean started = new AtomicBoolean();
-
-    protected AtomixClient(String namespace, ChannelProvider channelProvider) {
-        this.namespace = namespace;
-        this.channelProvider = channelProvider;
-    }
-
-    @Override
-    public ThreadContextFactory getThreadFactory() {
-        return threadContextFactory;
-    }
-
-    private Name getPrimitiveName(String name) {
-        return Name.newBuilder()
-            .setName(name)
-            .setNamespace(namespace)
-            .build();
-    }
-
-    @Override
-    public <B extends PrimitiveBuilder<B, P>, P extends SyncPrimitive> B primitiveBuilder(
-        String name,
-        PrimitiveType<B, P> primitiveType) {
-        checkRunning();
-        return primitiveType.newBuilder(getPrimitiveName(name), managementService);
+    protected AtomixClient(AsyncAtomixClient asyncClient) {
+        this.asyncClient = checkNotNull(asyncClient);
     }
 
     /**
-     * Checks that the instance is running.
-     */
-    private void checkRunning() {
-        checkState(isRunning(), "Atomix instance is not running");
-    }
-
-    /**
-     * Starts the Atomix instance.
-     * <p>
-     * The returned future will be completed once this instance completes startup. Note that in order to complete startup,
-     * all partitions must be able to form. For Raft partitions, that requires that a majority of the nodes in each
-     * partition be started concurrently.
+     * Returns the asynchronous client.
      *
-     * @return a future to be completed once the instance has completed startup
+     * @return the asynchronous client
      */
-    public synchronized CompletableFuture<AtomixClient> start() {
-        this.threadContextFactory = new BlockingAwareThreadPoolContextFactory(
-            "atomix-client-%d",
-            Runtime.getRuntime().availableProcessors(),
-            LOGGER);
-        this.managementService = new DefaultPrimitiveManagementService(
-            new PartitionServiceImpl(channelProvider.getFactory()),
-            primitiveCache,
-            threadContextFactory);
-        started.set(true);
-        LOGGER.info("Started");
-        return CompletableFuture.completedFuture(this);
+    public AsyncAtomixClient async() {
+        return asyncClient;
+    }
+
+    /**
+     * Returns a list of databases in the cluster.
+     *
+     * @return a list of databases supported by the controller
+     */
+    public Collection<AtomixDatabase> getDatabases() {
+        return complete(asyncClient.getDatabases());
+    }
+
+    /**
+     * Returns a database by name.
+     *
+     * @param name the database name
+     * @return the database
+     */
+    public AtomixDatabase getDatabase(String name) {
+        return complete(asyncClient.getDatabase(name));
+    }
+
+    protected <T> T complete(CompletableFuture<T> future) {
+        try {
+            return future.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new PrimitiveException.Interrupted();
+        } catch (TimeoutException e) {
+            throw new PrimitiveException.ConcurrentModification();
+        } catch (ExecutionException e) {
+            Throwable cause = Throwables.getRootCause(e);
+            if (cause instanceof PrimitiveException) {
+                throw (PrimitiveException) cause;
+            } else {
+                throw new PrimitiveException(cause);
+            }
+        }
+    }
+
+    /**
+     * Connects the client.
+     */
+    public void connect() {
+        complete(asyncClient.connect());
     }
 
     /**
@@ -161,19 +109,14 @@ public class AtomixClient implements AtomixClientService {
      * @return indicates whether the instance is running
      */
     public boolean isRunning() {
-        return started.get();
+        return asyncClient.isRunning();
     }
 
     /**
-     * Stops the instance.
-     *
-     * @return a future to be completed once the instance has been stopped
+     * Closes the client.
      */
-    public synchronized CompletableFuture<Void> stop() {
-        threadContextFactory.close();
-        LOGGER.info("Stopped");
-        started.set(false);
-        return CompletableFuture.completedFuture(null);
+    public synchronized void close() {
+        complete(asyncClient.close());
     }
 
     @Override

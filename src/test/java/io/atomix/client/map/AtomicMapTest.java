@@ -42,7 +42,7 @@ import static org.junit.Assert.assertTrue;
  */
 public class AtomicMapTest extends AbstractPrimitiveTest {
 
-    @Test
+    /*@Test
     public void testBasicMapOperations() throws Throwable {
         final String fooValue = "Hello foo!";
         final String barValue = "Hello bar!";
@@ -337,5 +337,5 @@ public class AtomicMapTest extends AbstractPrimitiveTest {
         public AtomicMapEvent<String, String> event() throws InterruptedException {
             return queue.take();
         }
-    }
+    }*/
 }

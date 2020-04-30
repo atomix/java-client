@@ -32,7 +32,7 @@ public class IdGeneratorTest extends AbstractPrimitiveTest {
     /**
      * Tests generating IDs.
      */
-    @Test
+    /*@Test
     public void testNextId() throws Throwable {
         AtomicIdGenerator idGenerator1 = client().atomicIdGeneratorBuilder("testNextId").build();
         AtomicIdGenerator idGenerator2 = client().atomicIdGeneratorBuilder("testNextId").build();
@@ -51,12 +51,12 @@ public class IdGeneratorTest extends AbstractPrimitiveTest {
         assertEquals(1001, idGenerator2.nextId());
         assertEquals(1002, idGenerator2.nextId());
         assertEquals(1003, idGenerator2.nextId());
-    }
+    }*/
 
     /**
      * Tests generating IDs.
      */
-    @Test
+    /*@Test
     public void testNextIdBatchRollover() throws Throwable {
         DelegatingAtomicIdGenerator idGenerator1 = new DelegatingAtomicIdGenerator(
             client().atomicCounterBuilder("testNextIdBatchRollover").build()
@@ -85,5 +85,5 @@ public class IdGeneratorTest extends AbstractPrimitiveTest {
         assertEquals(Long.valueOf(4), future14.get(30, TimeUnit.SECONDS));
         assertEquals(Long.valueOf(9), future15.get(30, TimeUnit.SECONDS));
         assertEquals(Long.valueOf(10), future16.get(30, TimeUnit.SECONDS));
-    }
+    }*/
 }

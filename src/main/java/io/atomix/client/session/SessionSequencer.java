@@ -13,13 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.atomix.client.impl;
-
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.Map;
-import java.util.Queue;
+package io.atomix.client.session;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.atomix.api.headers.ResponseHeader;
@@ -28,6 +22,8 @@ import io.atomix.client.DistributedPrimitive;
 import io.atomix.client.utils.logging.ContextualLoggerFactory;
 import io.atomix.client.utils.logging.LoggerContext;
 import org.slf4j.Logger;
+
+import java.util.*;
 
 /**
  * Client response sequencer.
@@ -58,9 +54,9 @@ import org.slf4j.Logger;
  *
  * @author <a href="http://github.com/kuujo">Jordan Halterman</a>
  */
-final class PrimitiveSessionSequencer {
+final class SessionSequencer {
     private final Logger log;
-    private final PrimitiveSessionState state;
+    private final SessionState state;
     @VisibleForTesting
     long requestSequence;
     @VisibleForTesting
@@ -68,12 +64,10 @@ final class PrimitiveSessionSequencer {
     private final Map<Long, StreamSequencer> streams = new HashMap<>();
     private final Map<Long, ResponseCallback> responseCallbacks = new HashMap<>();
 
-    PrimitiveSessionSequencer(PrimitiveSessionState state, ManagedPrimitiveContext context) {
+    SessionSequencer(SessionState state) {
         this.state = state;
         this.log = ContextualLoggerFactory.getLogger(getClass(), LoggerContext.builder(DistributedPrimitive.class)
             .addValue(state.getSessionId())
-            .add("type", context.type().getClass().getSimpleName())
-            .add("name", context.name())
             .build());
     }
 
@@ -166,7 +160,7 @@ final class PrimitiveSessionSequencer {
     private boolean completeResponse(ResponseHeader response, Runnable callback) {
         // If the response is null, that indicates an exception occurred. The best we can do is complete
         // the response in sequential order.
-        if (response == null) {
+        /*if (response == null) {
             log.trace("Completing failed request");
             callback.run();
             return true;
@@ -186,18 +180,20 @@ final class PrimitiveSessionSequencer {
             return true;
         } else {
             return false;
-        }
+        }*/
+        return true;
     }
 
     /**
      * Completes sequenced values in the given stream.
      */
     private boolean completeStream(StreamHeader stream) {
-        StreamSequencer sequencer = streams.get(stream.getStreamId());
+        /*StreamSequencer sequencer = streams.get(stream.getStreamId());
         if (sequencer == null) {
             return stream.getLastItemNumber() == 0;
         }
-        return sequencer.completeStream(stream);
+        return sequencer.completeStream(stream);*/
+        return true;
     }
 
     /**
@@ -309,7 +305,7 @@ final class PrimitiveSessionSequencer {
          */
         void sequenceEvent(StreamHeader context, Runnable callback) {
             // If the sequence number is equal to the next stream sequence number, accept the event.
-            if (context.getLastItemNumber() == streamSequence + 1) {
+            /*if (context.getLastItemNumber() == streamSequence + 1) {
                 streamSequence = context.getLastItemNumber();
                 streamIndex = context.getIndex();
                 if (requestSequence == responseSequence) {
@@ -321,7 +317,7 @@ final class PrimitiveSessionSequencer {
                     eventCallbacks.add(new EventCallback(context, callback));
                     completeResponses();
                 }
-            }
+            }*/
         }
 
         /**
@@ -333,7 +329,7 @@ final class PrimitiveSessionSequencer {
         boolean completeStream(StreamHeader context) {
             // For each pending event with an eventIndex less than or equal to the response eventIndex, complete the event.
             // This is safe since we know that sequenced responses should see sequential order of events.
-            EventCallback eventCallback = eventCallbacks.peek();
+            /*EventCallback eventCallback = eventCallbacks.peek();
             while (eventCallback != null && eventCallback.event.getLastItemNumber() <= context.getLastItemNumber()) {
                 eventCallbacks.remove();
                 log.trace("Completing event {}", eventCallback.event);
@@ -348,14 +344,15 @@ final class PrimitiveSessionSequencer {
                 }
                 eventCallback = eventCallbacks.peek();
             }
-            return completeSequence == context.getLastItemNumber();
+            return completeSequence == context.getLastItemNumber();*/
+            return true;
         }
 
         /**
          * Completes all pending events in the stream.
          */
         void completeStream() {
-            EventCallback eventCallback = eventCallbacks.poll();
+            /*EventCallback eventCallback = eventCallbacks.poll();
             while (eventCallback != null) {
                 log.trace("Completing {}", eventCallback.event);
                 eventCallback.run();
@@ -365,7 +362,7 @@ final class PrimitiveSessionSequencer {
             }
             if (closeCallback != null) {
                 closeCallback.run();
-            }
+            }*/
         }
 
         /**

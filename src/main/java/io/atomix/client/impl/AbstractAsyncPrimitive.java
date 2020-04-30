@@ -18,14 +18,19 @@ package io.atomix.client.impl;
 import io.atomix.api.headers.RequestHeader;
 import io.atomix.api.headers.ResponseHeader;
 import io.atomix.api.primitive.Name;
+import io.atomix.client.AsyncAtomixClient;
 import io.atomix.client.AsyncPrimitive;
 import io.atomix.client.ManagedAsyncPrimitive;
+import io.atomix.client.PrimitiveState;
+import io.atomix.client.session.Session;
 import io.atomix.client.utils.concurrent.ThreadContext;
 import io.grpc.stub.StreamObserver;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -36,12 +41,13 @@ import static com.google.common.base.Preconditions.checkNotNull;
 public abstract class AbstractAsyncPrimitive<S, P extends AsyncPrimitive> implements ManagedAsyncPrimitive<P> {
     private final Name name;
     private final S service;
+    private final Session session;
     private final ThreadContext context;
-    private final AtomicLong index = new AtomicLong();
-
-    public AbstractAsyncPrimitive(Name name, S service, ThreadContext context) {
+    private static final Logger LOGGER = LoggerFactory.getLogger(AbstractAsyncPrimitive.class);
+    public AbstractAsyncPrimitive(Name name, S service, Session session, ThreadContext context) {
         this.name = checkNotNull(name);
         this.service = checkNotNull(service);
+        this.session = session;
         this.context = context;
     }
 
@@ -77,57 +83,58 @@ public abstract class AbstractAsyncPrimitive<S, P extends AsyncPrimitive> implem
         return service;
     }
 
-    private RequestHeader getRequestHeader() {
-        return RequestHeader.newBuilder()
-            .setName(name)
-            .setIndex(index.get())
-            .build();
+    protected <T> CompletableFuture<T> session(BiConsumer<RequestHeader, StreamObserver<T>> function) {
+        return session.session(name, function);
     }
 
-    protected <T> CompletableFuture<T> execute(
-        BiConsumer<RequestHeader, StreamObserver<T>> callback,
+    protected <T> CompletableFuture<T> command(
+        BiConsumer<RequestHeader, StreamObserver<T>> function,
         Function<T, ResponseHeader> headerFunction) {
-        CompletableFuture<T> future = new CompletableFuture<>();
-        callback.accept(getRequestHeader(), new StreamObserver<T>() {
-            @Override
-            public void onNext(T response) {
-                index.accumulateAndGet(headerFunction.apply(response).getIndex(), Math::max);
-                future.complete(response);
-            }
-
-            @Override
-            public void onError(Throwable t) {
-                future.completeExceptionally(t);
-            }
-
-            @Override
-            public void onCompleted() {
-            }
-        });
-        return future;
+        LOGGER.info("Execute command:" + name + ":" + function.toString() + ":" + headerFunction.toString());
+        CompletableFuture returnValue = session.command(name, function, headerFunction);
+        return returnValue;
     }
 
-    protected <T> CompletableFuture<Void> execute(
-        BiConsumer<RequestHeader, StreamObserver<T>> callback,
+    protected <T> CompletableFuture<Long> command(
+        BiConsumer<RequestHeader, StreamObserver<T>> function,
         Function<T, ResponseHeader> headerFunction,
-        StreamObserver<T> observer) {
-        callback.accept(getRequestHeader(), new StreamObserver<T>() {
-            @Override
-            public void onNext(T response) {
-                index.accumulateAndGet(headerFunction.apply(response).getIndex(), Math::max);
-                observer.onNext(response);
-            }
-
-            @Override
-            public void onError(Throwable t) {
-                observer.onError(t);
-            }
-
-            @Override
-            public void onCompleted() {
-                observer.onCompleted();
-            }
-        });
-        return CompletableFuture.completedFuture(null);
+        StreamObserver<T> handler) {
+        return session.command(name, function, headerFunction, handler);
     }
+
+    protected <T> CompletableFuture<T> query(
+        BiConsumer<RequestHeader, StreamObserver<T>> function,
+        Function<T, ResponseHeader> headerFunction) {
+        return session.query(name, function, headerFunction);
+    }
+
+    protected <T> CompletableFuture<Void> query(
+        BiConsumer<RequestHeader, StreamObserver<T>> function,
+        Function<T, ResponseHeader> headerFunction,
+        StreamObserver<T> handler) {
+        return session.query(name, function, headerFunction, handler);
+    }
+
+    protected void state(Consumer<PrimitiveState> consumer) {
+        session.state(consumer);
+    }
+
+    @Override
+    public CompletableFuture<P> connect() {
+        return create().thenApply(v -> (P) this);
+    }
+
+    protected abstract CompletableFuture<Void> create();
+
+    @Override
+    public CompletableFuture<Void> close() {
+        return close(false);
+    }
+
+    @Override
+    public CompletableFuture<Void> delete() {
+        return close(true);
+    }
+
+    protected abstract CompletableFuture<Void> close(boolean delete);
 }
